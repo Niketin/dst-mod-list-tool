@@ -3,9 +3,13 @@ import argparse
 import platform
 import getpass
 
-default_output_path = "dedicated_server_mods_setup.lua"
+dsms_lua_file_name = "dedicated_server_mods_setup.lua"
+mo_lua_file_name = "modoverrides.lua"
 description = f"""Mod list generator for Don't Starve Together Dedicated Server.
-  By default it outputs the file '{default_output_path} to the current directory.'
+
+It automatically generates '{mo_lua_file_name}' and '{dsms_lua_file_name}' lists containing the mods that are currently installed in the Don't Starve Together game.
+Normally the files are created by hand.
+This generator should make the job a lot faster.
 """
 
 
@@ -50,6 +54,20 @@ def write_dedicated_server_mods_setup_lua(mods, output_path):
     print(f"File '{file_name}' created succesfully!")
 
 
+def write_modoverrides_lua(mods, output_path):
+    with open(output_path, "w") as f:
+        f.write("return {\n")
+        for i, (mod_path, name) in enumerate(mods):
+            id = get_mod_id_from_path(mod_path)
+            f.write(f"--#{name}\n")
+            period_if_not_last = "," if i < len(mods) - 1 else ""
+            f.write(
+                f"[\"workshop-{id}\"] = {{ enabled = true }}{period_if_not_last}\n")
+        f.write("}")
+    file_name = os.path.basename(output_path)
+    print(f"File '{file_name}' created succesfully!")
+
+
 def find_dst_directory():
     if platform.system() != "Linux":
         raise Exception("Unsupported feature on non-Linux machine.")
@@ -62,30 +80,29 @@ def find_dst_directory():
 
 def main():
     parser = argparse.ArgumentParser(
-        description=description, formatter_class=argparse.RawDescriptionHelpFormatter)
+        description=description)
 
-    parser.add_argument(
+    path_group = parser.add_mutually_exclusive_group(required=True)
+    path_group.add_argument(
         "--dst-path", help="Path to Don't Starve Together installation folder.")
-    parser.add_argument(
-        "--output-path", help="Override the output file path. A new file is automatically created. If the file already exists, the result will be appended to the end of the file.")
+    path_group.add_argument(
+        "--auto", action="store_true", help="Automatically determine the Don't Starve Together installation folder.")
     args = parser.parse_args()
-
-    output_path = default_output_path
-    if args.output_path:
-        output_path = args.output_path
 
     dst_path = None
     if args.dst_path:
         dst_path = args.dst_path
+    elif args.auto:
+        dst_path = find_dst_directory()
     else:
-        try:
-            dst_path = find_dst_directory()
-        except Exception as e:
-            print(e)
+        raise Exception("test")
 
-    mods = sorted(list(get_all_mods(f"{dst_path}/mods")))
+    mods_path = os.path.join(dst_path, 'mods')
+    mods = sorted(list(get_all_mods(mods_path)))
     print(f"Generated {len(mods)} items.")
-    write_dedicated_server_mods_setup_lua(mods, output_path)
+
+    write_dedicated_server_mods_setup_lua(mods, dsms_lua_file_name)
+    write_modoverrides_lua(mods, mo_lua_file_name)
 
 
 if __name__ == "__main__":
