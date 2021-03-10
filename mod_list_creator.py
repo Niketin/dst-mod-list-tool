@@ -1,5 +1,7 @@
 import os
 import argparse
+import platform
+import getpass
 
 default_output_path = "dedicated_server_mods_setup.lua"
 description = f"""Mod list generator for Don't Starve Together Dedicated Server.
@@ -34,7 +36,6 @@ def get_mod_name_and_id(mod_path):
             if line.startswith("name = "):
                 mod_name = line[8:-2]
                 return (mod_path, mod_name)
-
     raise Exception(
         f"Could not find the name of the mod in file '{mod_info_path}'")
 
@@ -49,12 +50,22 @@ def write_dedicated_server_mods_setup_lua(mods, output_path):
     print(f"File '{file_name}' created succesfully!")
 
 
+def find_dst_directory():
+    if platform.system() != "Linux":
+        raise Exception("Unsupported feature on non-Linux machine.")
+    user = getpass.getuser()
+    path = f"/home/{user}/.steam/steam/steamapps/common/Don't Starve Together"
+    if not os.path.exists(path):
+        raise Exception("DST path could not be found.")
+    return path
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=description, formatter_class=argparse.RawDescriptionHelpFormatter)
 
     parser.add_argument(
-        "mods_path", help="Path to Don't Starve Together mods folder")
+        "--dst-path", help="Path to Don't Starve Together installation folder.")
     parser.add_argument(
         "--output-path", help="Override the output file path. A new file is automatically created. If the file already exists, the result will be appended to the end of the file.")
     args = parser.parse_args()
@@ -63,17 +74,18 @@ def main():
     if args.output_path:
         output_path = args.output_path
 
-    mods_path = None
-    if args.mods_path:
-        mods_path = args.mods_path
+    dst_path = None
+    if args.dst_path:
+        dst_path = args.dst_path
     else:
-        # TODO find mods path automatically. 'mods_path' needs to be optional argument.
-        pass
+        try:
+            dst_path = find_dst_directory()
+        except Exception as e:
+            print(e)
 
-    mods = sorted(list(get_all_mods(mods_path)))
+    mods = sorted(list(get_all_mods(f"{dst_path}/mods")))
     print(f"Generated {len(mods)} items.")
     write_dedicated_server_mods_setup_lua(mods, output_path)
-
 
 
 if __name__ == "__main__":
